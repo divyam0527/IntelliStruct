@@ -111,7 +111,7 @@ def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
     pdf.add_page()
     
     # Set margins to ensure enough space
-    pdf.set_margins(20, 20, 20)  # Left, Top, Right margins
+    pdf.set_margins(20, 20, 20)
     
     # Summary Statistics
     pdf.set_font("helvetica", 'B', 14)
@@ -145,12 +145,10 @@ def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
                      new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_font("helvetica", size=10)
             for _, row in samples.iterrows():
-                # Handle text that might be too long
-                text = f"- {str(row['Original Text'])[:150]}..."  # Ensure string conversion
+                text = f"- {str(row['Original Text'])[:150]}..."
                 pdf.multi_cell(0, 10, text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(5)
     
-    # Save the PDF
     pdf.output(filename)
     return filename
 
@@ -158,17 +156,6 @@ def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
 st.set_page_config(page_title="Feedback Sentiment Analyzer", layout="wide")
 st.title("🧠 Structured Insights: Feedback Sentiment Analyzer")
 st.write("Upload text, CSV, JSONL, audio, or image files to analyze sentiment and generate reports.")
-
-# Windows-specific instructions
-if platform.system() == 'Windows':
-    with st.expander("⚠️ Windows Setup Instructions"):
-        st.write("""
-        **For optimal performance on Windows:**
-        1. Install Tesseract OCR from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
-        2. Add Tesseract to your PATH or specify the path in the code
-        3. Install all required Python packages
-        4. For audio processing, ensure you have ffmpeg installed
-        """)
 
 uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "mp3", "png", "jpg", "jpeg"])
 
@@ -251,34 +238,28 @@ if uploaded_file:
             for _, row in samples.iterrows():
                 st.write(f"- {row['Original Text'][:150]}...")
     
-    # Generate and Download Report - UPDATED FOR DEPLOYMENT
+    # Generate and Download Report
     st.write("### Download Full Report")
     if st.button("Generate Comprehensive PDF Report"):
         with st.spinner("Generating report..."):
             try:
                 report_path = generate_pdf_report(df, sentiment_counts)
                 
-                # Display PDF using iframe for better compatibility
+                # Show success message
+                st.success("Report generated successfully!")
+                
+                # PDF Download Button
                 with open(report_path, "rb") as f:
-                    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+                    st.download_button(
+                        label="📥 Download Full PDF Report",
+                        data=f,
+                        file_name="sentiment_analysis_report.pdf",
+                        mime="application/pdf"
+                    )
                 
-                # Display PDF preview
-                pdf_display = f"""
-                <iframe src="data:application/pdf;base64,{base64_pdf}" 
-                        width="100%" 
-                        height="800px" 
-                        style="border: none;">
-                </iframe>
-                """
-                st.markdown(pdf_display, unsafe_allow_html=True)
+                # Alternative Preview Option
+                st.write("**Preview:** The full report is available for download above.")
                 
-                # Download button
-                st.download_button(
-                    label="📥 Download PDF Report",
-                    data=open(report_path, "rb").read(),
-                    file_name="sentiment_analysis_report.pdf",
-                    mime="application/pdf"
-                )
             except Exception as e:
                 st.error(f"Error generating PDF: {str(e)}")
             finally:
