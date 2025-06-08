@@ -10,9 +10,12 @@ from textblob import TextBlob
 import plotly.express as px
 from datetime import datetime
 import base64
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 import platform
 
+# Set Tesseract path for Windows
+if platform.system() == 'Windows':
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # Sentiment Analysis Function
 def analyze_sentiment(text):
@@ -93,19 +96,17 @@ def parse_image(file):
         os.remove(tmp_path)
     return text
 
-from fpdf import FPDF, XPos, YPos
-from fpdf.enums import XPos, YPos  # For newer versions of fpdf2
-
+# Generate PDF Report
 class PDF(FPDF):
     def header(self):
         self.set_font("helvetica", 'B', 16)
-        self.cell(0, 10, 'Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 10, 'Feedback Sentiment Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.set_font("helvetica", '', 12)
         self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
                    new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(10)
 
-def generate_pdf_report(df, sentiment_counts, filename="report.pdf"):
+def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
     pdf = PDF()
     pdf.add_page()
     
@@ -151,20 +152,25 @@ def generate_pdf_report(df, sentiment_counts, filename="report.pdf"):
     
     # Save the PDF
     pdf.output(filename)
-    return filename    
-
-# Create download link for PDF
-def create_download_link(val, filename):
-    b64 = base64.b64encode(val)
-    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download Report</a>'
+    return filename
 
 # Streamlit App Setup
-st.set_page_config(page_title="IntelliStruct", layout="wide")
-st.title("🧠 IntelliStruct: An Automated Tool for Data Structuring")
-st.write("Upload text, CSV, JSONL, audio, or image files to analyze and generate reports.")
+st.set_page_config(page_title="Feedback Sentiment Analyzer", layout="wide")
+st.title("🧠 Structured Insights: Feedback Sentiment Analyzer")
+st.write("Upload text, CSV, JSONL, audio, or image files to analyze sentiment and generate reports.")
 
+# Windows-specific instructions
+if platform.system() == 'Windows':
+    with st.expander("⚠️ Windows Setup Instructions"):
+        st.write("""
+        **For optimal performance on Windows:**
+        1. Install Tesseract OCR from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+        2. Add Tesseract to your PATH or specify the path in the code
+        3. Install all required Python packages
+        4. For audio processing, ensure you have ffmpeg installed
+        """)
 
-uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "mp3", "png", "jpg", "jpeg"])
 
 if uploaded_file:
     # File Parsing
@@ -184,21 +190,19 @@ if uploaded_file:
 
     # Prepare DataFrame
     if isinstance(raw_text, pd.DataFrame):
-        # If parse_csv returned a DataFrame (for advanced processing)
         df = raw_text.copy()
         if 'Original Text' not in df.columns:
-            df['Original Text'] = df.iloc[:, 0]  # Use first column if no text column identified
+            df['Original Text'] = df.iloc[:, 0]
     else:
-        # For all other file types
         lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
         df = pd.DataFrame(lines, columns=["Original Text"])
     
-    df["Original Text"] = df["Original Text"].apply(lambda x: str(x)[:512])  # Ensure string and limit length
+    df["Original Text"] = df["Original Text"].apply(lambda x: str(x)[:512])
     df["Sentiment"] = df["Original Text"].apply(analyze_sentiment)
 
     # Sentiment Filter
     sentiment_options = ["Positive", "Negative", "Neutral"]
-    selected_sentiments = st.multiselect("Filter :", sentiment_options, default=sentiment_options)
+    selected_sentiments = st.multiselect("Filter by Sentiment:", sentiment_options, default=sentiment_options)
     filtered_df = df[df["Sentiment"].isin(selected_sentiments)]
 
     # Chart Type Selector
@@ -247,22 +251,34 @@ if uploaded_file:
             for _, row in samples.iterrows():
                 st.write(f"- {row['Original Text'][:150]}...")
     
-    # Generate and Download Report
+    # Generate and Download Report - UPDATED FOR DEPLOYMENT
     st.write("### Download Full Report")
     if st.button("Generate Comprehensive PDF Report"):
         with st.spinner("Generating report..."):
             try:
                 report_path = generate_pdf_report(df, sentiment_counts)
+                
+                # Display PDF using iframe for better compatibility
                 with open(report_path, "rb") as f:
-                    pdf_bytes = f.read()
+                    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
                 
                 # Display PDF preview
-                base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="500" height="1000" type="application/pdf">'
+                pdf_display = f"""
+                <iframe src="data:application/pdf;base64,{base64_pdf}" 
+                        width="100%" 
+                        height="800px" 
+                        style="border: none;">
+                </iframe>
+                """
                 st.markdown(pdf_display, unsafe_allow_html=True)
                 
-                # Download link
-                st.markdown(create_download_link(pdf_bytes, "sentiment_analysis_report.pdf"), unsafe_allow_html=True)
+                # Download button
+                st.download_button(
+                    label="📥 Download PDF Report",
+                    data=open(report_path, "rb").read(),
+                    file_name="sentiment_analysis_report.pdf",
+                    mime="application/pdf"
+                )
             except Exception as e:
                 st.error(f"Error generating PDF: {str(e)}")
             finally:
