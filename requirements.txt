@@ -8,3 +8,4 @@ textblob
 plotly
 fpdf2
 python-dotenv
+fpdf2>=2.7.8
