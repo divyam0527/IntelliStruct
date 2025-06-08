@@ -45,7 +45,7 @@ def parse_csv(file, text_column=None):
                 break
     
     if text_column is None:
-        st.error("Could not identify text column in CSV. Please specify which column contains the feedback text.")
+        st.error("Could not identify text column in CSV. Please specify which column contains the text.")
         st.dataframe(df.head())
         text_column = st.selectbox("Select text column:", df.columns)
         
@@ -189,7 +189,7 @@ if uploaded_file:
 
     # Sentiment Filter
     sentiment_options = ["Positive", "Negative", "Neutral"]
-    selected_sentiments = st.multiselect("Filter by Sentiment:", sentiment_options, default=sentiment_options)
+    selected_sentiments = st.multiselect("Filter :", sentiment_options, default=sentiment_options)
     filtered_df = df[df["Sentiment"].isin(selected_sentiments)]
 
     # Chart Type Selector
@@ -204,14 +204,14 @@ if uploaded_file:
     sentiment_counts.columns = ['Sentiment', 'Count']
 
     if chart_type in ["Bar Chart", "Both"]:
-        st.subheader("📊 Sentiment Distribution - Bar Chart")
+        st.subheader("📊 Distribution - Bar Chart")
         st.bar_chart(sentiment_counts.set_index('Sentiment'))
 
     if chart_type in ["Pie Chart", "Both"]:
         fig = px.pie(sentiment_counts,
                      names='Sentiment',
                      values='Count',
-                     title='📈 Sentiment Distribution - Pie Chart',
+                     title='📈 Distribution - Pie Chart',
                      color_discrete_sequence=px.colors.qualitative.Set3)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -253,7 +253,7 @@ if uploaded_file:
                     st.download_button(
                         label="📥 Download Full PDF Report",
                         data=f,
-                        file_name="sentiment_analysis_report.pdf",
+                        file_name="analysis_report.pdf",
                         mime="application/pdf"
                     )
                 
