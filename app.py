@@ -11,6 +11,8 @@ import plotly.express as px
 from datetime import datetime
 import base64
 from fpdf import FPDF
+import platform
+
 
 # Sentiment Analysis Function
 def analyze_sentiment(text):
@@ -27,6 +29,25 @@ def analyze_sentiment(text):
 def parse_text(file):
     return file.read().decode("utf-8")
 
+# Parse CSV File
+def parse_csv(file, text_column=None):
+    df = pd.read_csv(file)
+    
+    # If no column specified, try to auto-detect text column
+    if text_column is None:
+        possible_columns = ['text', 'feedback', 'comment', 'review', 'content']
+        for col in possible_columns:
+            if col in df.columns:
+                text_column = col
+                break
+    
+    if text_column is None:
+        st.error("Could not identify text column in CSV. Please specify which column contains the feedback text.")
+        st.dataframe(df.head())
+        text_column = st.selectbox("Select text column:", df.columns)
+        
+    return "\n".join(df[text_column].astype(str).tolist())
+
 # Parse JSONL File
 def parse_jsonl(file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".jsonl") as tmp:
@@ -37,21 +58,25 @@ def parse_jsonl(file):
     os.remove(tmp_path)
     return "\n".join(lines)
 
-# Parse Audio File
+# Parse Audio File (Windows compatible)
 def parse_audio(file):
     recognizer = sr.Recognizer()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp.write(file.read())
         tmp_path = tmp.name
-    with sr.AudioFile(tmp_path) as source:
-        audio_data = recognizer.record(source)
-        try:
-            text = recognizer.recognize_google(audio_data)
-        except sr.UnknownValueError:
-            text = ""
-        except sr.RequestError as e:
-            text = f"Error with speech recognition: {e}"
-    os.remove(tmp_path)
+    try:
+        with sr.AudioFile(tmp_path) as source:
+            audio_data = recognizer.record(source)
+            try:
+                text = recognizer.recognize_google(audio_data)
+            except sr.UnknownValueError:
+                text = "Could not understand audio"
+            except sr.RequestError as e:
+                text = f"Error with speech recognition: {e}"
+    except Exception as e:
+        text = f"Error processing audio file: {str(e)}"
+    finally:
+        os.remove(tmp_path)
     return text
 
 # Parse Image File
@@ -59,23 +84,28 @@ def parse_image(file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         tmp.write(file.read())
         tmp_path = tmp.name
-    image = Image.open(tmp_path)
-    text = pytesseract.image_to_string(image)
-    os.remove(tmp_path)
+    try:
+        image = Image.open(tmp_path)
+        text = pytesseract.image_to_string(image)
+    except Exception as e:
+        text = f"Error processing image: {str(e)}"
+    finally:
+        os.remove(tmp_path)
     return text
 
 # Generate PDF Report
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'Analysis Report', 0, 1, 'C')
+        self.set_font('Arial', '', 12)
+        self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, 'C')
+        self.ln(10)
+
 def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
-    pdf = FPDF()
+    pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    
-    # Title
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="Feedback Sentiment Analysis Report", ln=1, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=1, align='C')
-    pdf.ln(10)
     
     # Summary Statistics
     pdf.set_font("Arial", 'B', 14)
@@ -87,7 +117,7 @@ def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
     negative = len(df[df['Sentiment'] == 'Negative'])
     neutral = len(df[df['Sentiment'] == 'Neutral'])
     
-    pdf.cell(200, 10, txt=f"Total Items Analyzed: {total_feedback}", ln=1)
+    pdf.cell(200, 10, txt=f"Total Feedback Items Analyzed: {total_feedback}", ln=1)
     pdf.cell(200, 10, txt=f"Positive Feedback: {positive} ({positive/total_feedback:.1%})", ln=1)
     pdf.cell(200, 10, txt=f"Negative Feedback: {negative} ({negative/total_feedback:.1%})", ln=1)
     pdf.cell(200, 10, txt=f"Neutral Feedback: {neutral} ({neutral/total_feedback:.1%})", ln=1)
@@ -118,16 +148,19 @@ def create_download_link(val, filename):
     return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download Report</a>'
 
 # Streamlit App Setup
-st.set_page_config(page_title="Structuring", layout="wide")
+st.set_page_config(page_title="IntelliStruct", layout="wide")
 st.title("🧠 IntelliStruct: An Automated Tool for Data Structuring")
-st.write("Upload text, audio, image, or JSONL file to analyze and generate reports.")
+st.write("Upload text, CSV, JSONL, audio, or image files to analyze and generate reports.")
 
-uploaded_file = st.file_uploader("Choose a file", type=["txt", "jsonl", "wav", "png", "jpg", "jpeg"])
+
+uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "png", "jpg", "jpeg"])
 
 if uploaded_file:
     # File Parsing
     if uploaded_file.type == "text/plain":
         raw_text = parse_text(uploaded_file)
+    elif uploaded_file.name.endswith(".csv"):
+        raw_text = parse_csv(uploaded_file)
     elif uploaded_file.name.endswith(".jsonl"):
         raw_text = parse_jsonl(uploaded_file)
     elif "audio" in uploaded_file.type:
@@ -139,14 +172,22 @@ if uploaded_file:
         st.stop()
 
     # Prepare DataFrame
-    lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
-    df = pd.DataFrame(lines, columns=["Original Text"])
-    df["Original Text"] = df["Original Text"].apply(lambda x: x[:512])
+    if isinstance(raw_text, pd.DataFrame):
+        # If parse_csv returned a DataFrame (for advanced processing)
+        df = raw_text.copy()
+        if 'Original Text' not in df.columns:
+            df['Original Text'] = df.iloc[:, 0]  # Use first column if no text column identified
+    else:
+        # For all other file types
+        lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+        df = pd.DataFrame(lines, columns=["Original Text"])
+    
+    df["Original Text"] = df["Original Text"].apply(lambda x: str(x)[:512])  # Ensure string and limit length
     df["Sentiment"] = df["Original Text"].apply(analyze_sentiment)
 
     # Sentiment Filter
     sentiment_options = ["Positive", "Negative", "Neutral"]
-    selected_sentiments = st.multiselect("Filters :", sentiment_options, default=sentiment_options)
+    selected_sentiments = st.multiselect("Filter by Sentiment:", sentiment_options, default=sentiment_options)
     filtered_df = df[df["Sentiment"].isin(selected_sentiments)]
 
     # Chart Type Selector
@@ -201,10 +242,10 @@ if uploaded_file:
         with st.spinner("Generating report..."):
             report_path = generate_pdf_report(df, sentiment_counts)
             with open(report_path, "rb") as f:
-                base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-            pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">'
+                pdf_bytes = f.read()
+            pdf_display = f'<embed src="data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode("utf-8")}" width="700" height="1000" type="application/pdf">'
             st.markdown(pdf_display, unsafe_allow_html=True)
-            st.markdown(create_download_link(f.read(), "sentiment_analysis_report.pdf"), unsafe_allow_html=True)
+            st.markdown(create_download_link(pdf_bytes, "sentiment_analysis_report.pdf"), unsafe_allow_html=True)
             os.remove(report_path)
 
     # Download CSV
