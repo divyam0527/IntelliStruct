@@ -93,54 +93,65 @@ def parse_image(file):
         os.remove(tmp_path)
     return text
 
-# Generate PDF Report
+from fpdf import FPDF, XPos, YPos
+from fpdf.enums import XPos, YPos  # For newer versions of fpdf2
+
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'Analysis Report', 0, 1, 'C')
-        self.set_font('Arial', '', 12)
-        self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, 'C')
+        self.set_font("helvetica", 'B', 16)
+        self.cell(0, 10, 'Feedback Sentiment Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_font("helvetica", '', 12)
+        self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
+                   new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(10)
 
 def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    
+    # Set margins to ensure enough space
+    pdf.set_margins(20, 20, 20)  # Left, Top, Right margins
     
     # Summary Statistics
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Summary Statistics", ln=1)
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "Summary Statistics", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", size=12)
     
     total_feedback = len(df)
     positive = len(df[df['Sentiment'] == 'Positive'])
     negative = len(df[df['Sentiment'] == 'Negative'])
     neutral = len(df[df['Sentiment'] == 'Neutral'])
     
-    pdf.cell(200, 10, txt=f"Total Feedback Items Analyzed: {total_feedback}", ln=1)
-    pdf.cell(200, 10, txt=f"Positive Feedback: {positive} ({positive/total_feedback:.1%})", ln=1)
-    pdf.cell(200, 10, txt=f"Negative Feedback: {negative} ({negative/total_feedback:.1%})", ln=1)
-    pdf.cell(200, 10, txt=f"Neutral Feedback: {neutral} ({neutral/total_feedback:.1%})", ln=1)
+    pdf.cell(0, 10, f"Total Feedback Items Analyzed: {total_feedback}", 
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Positive Feedback: {positive} ({positive/total_feedback:.1%})", 
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Negative Feedback: {negative} ({negative/total_feedback:.1%})", 
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Neutral Feedback: {neutral} ({neutral/total_feedback:.1%})", 
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(10)
     
     # Sample Feedback
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Sample Feedback", ln=1)
-    pdf.set_font("Arial", size=10)
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "Sample Feedback", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     for sentiment in ['Positive', 'Negative', 'Neutral']:
         samples = df[df['Sentiment'] == sentiment].head(3)
         if not samples.empty:
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(200, 10, txt=f"{sentiment} Feedback Examples:", ln=1)
-            pdf.set_font("Arial", size=10)
+            pdf.set_font("helvetica", 'B', 12)
+            pdf.cell(0, 10, f"{sentiment} Feedback Examples:", 
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.set_font("helvetica", size=10)
             for _, row in samples.iterrows():
-                pdf.multi_cell(0, 10, txt=f"- {row['Original Text'][:150]}...")
+                # Handle text that might be too long
+                text = f"- {str(row['Original Text'])[:150]}..."  # Ensure string conversion
+                pdf.multi_cell(0, 10, text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(5)
     
     # Save the PDF
     pdf.output(filename)
-    return filename
+    return filename    
 
 # Create download link for PDF
 def create_download_link(val, filename):
@@ -240,13 +251,23 @@ if uploaded_file:
     st.write("### Download Full Report")
     if st.button("Generate Comprehensive PDF Report"):
         with st.spinner("Generating report..."):
-            report_path = generate_pdf_report(df, sentiment_counts)
-            with open(report_path, "rb") as f:
-                pdf_bytes = f.read()
-            pdf_display = f'<embed src="data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode("utf-8")}" width="700" height="1000" type="application/pdf">'
-            st.markdown(pdf_display, unsafe_allow_html=True)
-            st.markdown(create_download_link(pdf_bytes, "sentiment_analysis_report.pdf"), unsafe_allow_html=True)
-            os.remove(report_path)
+            try:
+                report_path = generate_pdf_report(df, sentiment_counts)
+                with open(report_path, "rb") as f:
+                    pdf_bytes = f.read()
+                
+                # Display PDF preview
+                base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">'
+                st.markdown(pdf_display, unsafe_allow_html=True)
+                
+                # Download link
+                st.markdown(create_download_link(pdf_bytes, "sentiment_analysis_report.pdf"), unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error generating PDF: {str(e)}")
+            finally:
+                if os.path.exists(report_path):
+                    os.remove(report_path)
 
     # Download CSV
     csv = filtered_df.to_csv(index=False).encode("utf-8")
