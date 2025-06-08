@@ -100,13 +100,13 @@ def parse_image(file):
 class PDF(FPDF):
     def header(self):
         self.set_font("helvetica", 'B', 16)
-        self.cell(0, 10, 'Feedback Sentiment Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 10, 'Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.set_font("helvetica", '', 12)
         self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
                    new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(10)
 
-def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
+def generate_pdf_report(df, sentiment_counts, filename="report.pdf"):
     pdf = PDF()
     pdf.add_page()
     
@@ -153,11 +153,11 @@ def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
     return filename
 
 # Streamlit App Setup
-st.set_page_config(page_title="Feedback Sentiment Analyzer", layout="wide")
-st.title("🧠 Structured Insights: Feedback Sentiment Analyzer")
-st.write("Upload text, CSV, JSONL, audio, or image files to analyze sentiment and generate reports.")
+st.set_page_config(page_title="IntelliStruct", layout="wide")
+st.title("🧠 IntelliStruct: An Automated Tool for Data Structuring")
+st.write("Upload text, CSV, JSONL, audio, or image files to analyze and generate reports.")
 
-uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "mp3", "png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Choose a file", type=["txt", "csv", "jsonl", "wav", "png", "jpg", "jpeg"])
 
 if uploaded_file:
     # File Parsing
