@@ -9,3 +9,5 @@ plotly
 fpdf2
 python-dotenv
 fpdf2>=2.7.8
+pdf2image>=1.16.0
+poppler-utils
