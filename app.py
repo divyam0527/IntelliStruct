@@ -99,13 +99,13 @@ from fpdf.enums import XPos, YPos  # For newer versions of fpdf2
 class PDF(FPDF):
     def header(self):
         self.set_font("helvetica", 'B', 16)
-        self.cell(0, 10, 'Feedback Sentiment Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 10, 'Analysis Report', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.set_font("helvetica", '', 12)
         self.cell(0, 10, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
                    new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(10)
 
-def generate_pdf_report(df, sentiment_counts, filename="sentiment_report.pdf"):
+def generate_pdf_report(df, sentiment_counts, filename="report.pdf"):
     pdf = PDF()
     pdf.add_page()
     
@@ -198,7 +198,7 @@ if uploaded_file:
 
     # Sentiment Filter
     sentiment_options = ["Positive", "Negative", "Neutral"]
-    selected_sentiments = st.multiselect("Filter by Sentiment:", sentiment_options, default=sentiment_options)
+    selected_sentiments = st.multiselect("Filter :", sentiment_options, default=sentiment_options)
     filtered_df = df[df["Sentiment"].isin(selected_sentiments)]
 
     # Chart Type Selector
@@ -258,7 +258,7 @@ if uploaded_file:
                 
                 # Display PDF preview
                 base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">'
+                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="500" height="1000" type="application/pdf">'
                 st.markdown(pdf_display, unsafe_allow_html=True)
                 
                 # Download link
